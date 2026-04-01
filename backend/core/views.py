@@ -3,9 +3,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
-from django.conf import settings
-from .models import Record
+from django.db.models import Sum, Count
+from .models import PayEmployee, Payslip, Deduction
 
 
 def login_view(request):
@@ -30,67 +29,181 @@ def logout_view(request):
 
 @login_required
 def dashboard_view(request):
-    total = Record.objects.count()
-    active = Record.objects.filter(status='active').count()
-    pending = Record.objects.filter(status='pending').count()
-    inactive = Record.objects.filter(status='inactive').count()
-    recent = Record.objects.all()[:10]
-    return render(request, 'dashboard.html', {
-        'total': total, 'active': active, 'pending': pending,
-        'inactive': inactive, 'recent': recent,
-    })
+    ctx = {}
+    ctx['payemployee_count'] = PayEmployee.objects.count()
+    ctx['payemployee_active'] = PayEmployee.objects.filter(status='active').count()
+    ctx['payemployee_inactive'] = PayEmployee.objects.filter(status='inactive').count()
+    ctx['payemployee_total_basic_salary'] = PayEmployee.objects.aggregate(t=Sum('basic_salary'))['t'] or 0
+    ctx['payslip_count'] = Payslip.objects.count()
+    ctx['payslip_draft'] = Payslip.objects.filter(status='draft').count()
+    ctx['payslip_processed'] = Payslip.objects.filter(status='processed').count()
+    ctx['payslip_paid'] = Payslip.objects.filter(status='paid').count()
+    ctx['payslip_total_gross'] = Payslip.objects.aggregate(t=Sum('gross'))['t'] or 0
+    ctx['deduction_count'] = Deduction.objects.count()
+    ctx['deduction_tax'] = Deduction.objects.filter(deduction_type='tax').count()
+    ctx['deduction_pf'] = Deduction.objects.filter(deduction_type='pf').count()
+    ctx['deduction_esi'] = Deduction.objects.filter(deduction_type='esi').count()
+    ctx['deduction_total_amount'] = Deduction.objects.aggregate(t=Sum('amount'))['t'] or 0
+    ctx['recent'] = PayEmployee.objects.all()[:10]
+    return render(request, 'dashboard.html', ctx)
 
 
 @login_required
-def records_view(request):
-    records = Record.objects.all()
-    status_filter = request.GET.get('status', '')
+def payemployee_list(request):
+    qs = PayEmployee.objects.all()
     search = request.GET.get('search', '')
-    if status_filter:
-        records = records.filter(status=status_filter)
     if search:
-        records = records.filter(name__icontains=search)
-    return render(request, 'records.html', {'records': records, 'status_filter': status_filter, 'search': search})
+        qs = qs.filter(name__icontains=search)
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    return render(request, 'payemployee_list.html', {'records': qs, 'search': search, 'status_filter': status_filter})
 
 
 @login_required
-def record_create(request):
+def payemployee_create(request):
     if request.method == 'POST':
-        Record.objects.create(
-            name=request.POST.get('name', ''),
-            description=request.POST.get('description', ''),
-            status=request.POST.get('status', 'active'),
-            email=request.POST.get('email', ''),
-            phone=request.POST.get('phone', ''),
-            amount=request.POST.get('amount', 0) or 0,
-            notes=request.POST.get('notes', ''),
-        )
-        return redirect('/records/')
-    return render(request, 'record_form.html', {'editing': False})
+        obj = PayEmployee()
+        obj.name = request.POST.get('name', '')
+        obj.employee_id = request.POST.get('employee_id', '')
+        obj.department = request.POST.get('department', '')
+        obj.designation = request.POST.get('designation', '')
+        obj.basic_salary = request.POST.get('basic_salary') or 0
+        obj.status = request.POST.get('status', '')
+        obj.bank_account = request.POST.get('bank_account', '')
+        obj.pan_number = request.POST.get('pan_number', '')
+        obj.save()
+        return redirect('/payemployees/')
+    return render(request, 'payemployee_form.html', {'editing': False})
 
 
 @login_required
-def record_edit(request, pk):
-    record = get_object_or_404(Record, pk=pk)
+def payemployee_edit(request, pk):
+    obj = get_object_or_404(PayEmployee, pk=pk)
     if request.method == 'POST':
-        record.name = request.POST.get('name', record.name)
-        record.description = request.POST.get('description', record.description)
-        record.status = request.POST.get('status', record.status)
-        record.email = request.POST.get('email', record.email)
-        record.phone = request.POST.get('phone', record.phone)
-        record.amount = request.POST.get('amount', record.amount) or 0
-        record.notes = request.POST.get('notes', record.notes)
-        record.save()
-        return redirect('/records/')
-    return render(request, 'record_form.html', {'record': record, 'editing': True})
+        obj.name = request.POST.get('name', '')
+        obj.employee_id = request.POST.get('employee_id', '')
+        obj.department = request.POST.get('department', '')
+        obj.designation = request.POST.get('designation', '')
+        obj.basic_salary = request.POST.get('basic_salary') or 0
+        obj.status = request.POST.get('status', '')
+        obj.bank_account = request.POST.get('bank_account', '')
+        obj.pan_number = request.POST.get('pan_number', '')
+        obj.save()
+        return redirect('/payemployees/')
+    return render(request, 'payemployee_form.html', {'record': obj, 'editing': True})
 
 
 @login_required
-def record_delete(request, pk):
-    record = get_object_or_404(Record, pk=pk)
+def payemployee_delete(request, pk):
+    obj = get_object_or_404(PayEmployee, pk=pk)
     if request.method == 'POST':
-        record.delete()
-    return redirect('/records/')
+        obj.delete()
+    return redirect('/payemployees/')
+
+
+@login_required
+def payslip_list(request):
+    qs = Payslip.objects.all()
+    search = request.GET.get('search', '')
+    if search:
+        qs = qs.filter(employee_name__icontains=search)
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    return render(request, 'payslip_list.html', {'records': qs, 'search': search, 'status_filter': status_filter})
+
+
+@login_required
+def payslip_create(request):
+    if request.method == 'POST':
+        obj = Payslip()
+        obj.employee_name = request.POST.get('employee_name', '')
+        obj.month = request.POST.get('month', '')
+        obj.year = request.POST.get('year') or 0
+        obj.gross = request.POST.get('gross') or 0
+        obj.deductions = request.POST.get('deductions') or 0
+        obj.net_salary = request.POST.get('net_salary') or 0
+        obj.status = request.POST.get('status', '')
+        obj.generated_date = request.POST.get('generated_date') or None
+        obj.save()
+        return redirect('/payslips/')
+    return render(request, 'payslip_form.html', {'editing': False})
+
+
+@login_required
+def payslip_edit(request, pk):
+    obj = get_object_or_404(Payslip, pk=pk)
+    if request.method == 'POST':
+        obj.employee_name = request.POST.get('employee_name', '')
+        obj.month = request.POST.get('month', '')
+        obj.year = request.POST.get('year') or 0
+        obj.gross = request.POST.get('gross') or 0
+        obj.deductions = request.POST.get('deductions') or 0
+        obj.net_salary = request.POST.get('net_salary') or 0
+        obj.status = request.POST.get('status', '')
+        obj.generated_date = request.POST.get('generated_date') or None
+        obj.save()
+        return redirect('/payslips/')
+    return render(request, 'payslip_form.html', {'record': obj, 'editing': True})
+
+
+@login_required
+def payslip_delete(request, pk):
+    obj = get_object_or_404(Payslip, pk=pk)
+    if request.method == 'POST':
+        obj.delete()
+    return redirect('/payslips/')
+
+
+@login_required
+def deduction_list(request):
+    qs = Deduction.objects.all()
+    search = request.GET.get('search', '')
+    if search:
+        qs = qs.filter(name__icontains=search)
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        qs = qs.filter(deduction_type=status_filter)
+    return render(request, 'deduction_list.html', {'records': qs, 'search': search, 'status_filter': status_filter})
+
+
+@login_required
+def deduction_create(request):
+    if request.method == 'POST':
+        obj = Deduction()
+        obj.name = request.POST.get('name', '')
+        obj.deduction_type = request.POST.get('deduction_type', '')
+        obj.amount = request.POST.get('amount') or 0
+        obj.percentage = request.POST.get('percentage') or 0
+        obj.active = request.POST.get('active') == 'on'
+        obj.description = request.POST.get('description', '')
+        obj.save()
+        return redirect('/deductions/')
+    return render(request, 'deduction_form.html', {'editing': False})
+
+
+@login_required
+def deduction_edit(request, pk):
+    obj = get_object_or_404(Deduction, pk=pk)
+    if request.method == 'POST':
+        obj.name = request.POST.get('name', '')
+        obj.deduction_type = request.POST.get('deduction_type', '')
+        obj.amount = request.POST.get('amount') or 0
+        obj.percentage = request.POST.get('percentage') or 0
+        obj.active = request.POST.get('active') == 'on'
+        obj.description = request.POST.get('description', '')
+        obj.save()
+        return redirect('/deductions/')
+    return render(request, 'deduction_form.html', {'record': obj, 'editing': True})
+
+
+@login_required
+def deduction_delete(request, pk):
+    obj = get_object_or_404(Deduction, pk=pk)
+    if request.method == 'POST':
+        obj.delete()
+    return redirect('/deductions/')
 
 
 @login_required
@@ -98,12 +211,10 @@ def settings_view(request):
     return render(request, 'settings.html')
 
 
-# API endpoints
 @login_required
 def api_stats(request):
-    return JsonResponse({
-        'total': Record.objects.count(),
-        'active': Record.objects.filter(status='active').count(),
-        'pending': Record.objects.filter(status='pending').count(),
-        'inactive': Record.objects.filter(status='inactive').count(),
-    })
+    data = {}
+    data['payemployee_count'] = PayEmployee.objects.count()
+    data['payslip_count'] = Payslip.objects.count()
+    data['deduction_count'] = Deduction.objects.count()
+    return JsonResponse(data)
