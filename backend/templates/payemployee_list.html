@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Payemployees | NexusPayroll{% endblock %}
+{% block page_title %}Payemployees{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+  <form class="search-bar" method="get" style="flex:1;margin-bottom:0">
+    <input type="text" name="search" value="{{ search }}" placeholder="Search payemployees...">
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All Status</option>
+      <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+      <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Search</button>
+  </form>
+  <a href="/payemployees/create/" class="btn btn-primary">+ New PayEmployee</a>
+</div>
+
+<div class="card">
+  {% if records %}
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Employee Id</th><th>Department</th><th>Designation</th><th>Basic Salary</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for r in records %}
+      <tr>
+        <td><a href="/payemployees/{{ r.pk }}/edit/"><strong>{{ r.name }}</strong></a></td>
+        <td>{{ r.employee_id|default:"-" }}</td>
+        <td>{{ r.department|default:"-" }}</td>
+        <td>{{ r.designation|default:"-" }}</td>
+        <td>{{ r.basic_salary|floatformat:2 }}</td>
+        <td class="actions">
+          <a href="/payemployees/{{ r.pk }}/edit/" class="btn btn-primary btn-sm">Edit</a>
+          <form method="post" action="/payemployees/{{ r.pk }}/delete/" style="display:inline" onsubmit="return confirm('Delete?')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm">Del</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <p>No payemployees found.</p>
+    <a href="/payemployees/create/" class="btn btn-primary" style="margin-top:1rem">Create PayEmployee</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
