@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Deductions | NexusPayroll{% endblock %}
+{% block page_title %}Deductions{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+  <form class="search-bar" method="get" style="flex:1;margin-bottom:0">
+    <input type="text" name="search" value="{{ search }}" placeholder="Search deductions...">
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All Deduction Type</option>
+      <option value="tax" {% if status_filter == 'tax' %}selected{% endif %}>Tax</option>
+      <option value="pf" {% if status_filter == 'pf' %}selected{% endif %}>PF</option>
+      <option value="esi" {% if status_filter == 'esi' %}selected{% endif %}>ESI</option>
+      <option value="insurance" {% if status_filter == 'insurance' %}selected{% endif %}>Insurance</option>
+      <option value="loan" {% if status_filter == 'loan' %}selected{% endif %}>Loan</option>
+      <option value="other" {% if status_filter == 'other' %}selected{% endif %}>Other</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Search</button>
+  </form>
+  <a href="/deductions/create/" class="btn btn-primary">+ New Deduction</a>
+</div>
+
+<div class="card">
+  {% if records %}
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Deduction Type</th><th>Amount</th><th>Percentage</th><th>Active</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for r in records %}
+      <tr>
+        <td><a href="/deductions/{{ r.pk }}/edit/"><strong>{{ r.name }}</strong></a></td>
+        <td><span class="badge badge-blue">{{ r.get_deduction_type_display }}</span></td>
+        <td>{{ r.amount|floatformat:2 }}</td>
+        <td>{{ r.percentage|floatformat:2 }}</td>
+        <td><span class="badge {{ r.active|yesno:\"badge-green,badge-red\" }}">{{ r.active|yesno:\"Yes,No\" }}</span></td>
+        <td class="actions">
+          <a href="/deductions/{{ r.pk }}/edit/" class="btn btn-primary btn-sm">Edit</a>
+          <form method="post" action="/deductions/{{ r.pk }}/delete/" style="display:inline" onsubmit="return confirm('Delete?')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm">Del</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <p>No deductions found.</p>
+    <a href="/deductions/create/" class="btn btn-primary" style="margin-top:1rem">Create Deduction</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
