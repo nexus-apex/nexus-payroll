@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Payslips | NexusPayroll{% endblock %}
+{% block page_title %}Payslips{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+  <form class="search-bar" method="get" style="flex:1;margin-bottom:0">
+    <input type="text" name="search" value="{{ search }}" placeholder="Search payslips...">
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All Status</option>
+      <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Draft</option>
+      <option value="processed" {% if status_filter == 'processed' %}selected{% endif %}>Processed</option>
+      <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>Paid</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Search</button>
+  </form>
+  <a href="/payslips/create/" class="btn btn-primary">+ New Payslip</a>
+</div>
+
+<div class="card">
+  {% if records %}
+  <table>
+    <thead>
+      <tr><th>Employee Name</th><th>Month</th><th>Year</th><th>Gross</th><th>Deductions</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for r in records %}
+      <tr>
+        <td><a href="/payslips/{{ r.pk }}/edit/"><strong>{{ r.employee_name }}</strong></a></td>
+        <td>{{ r.month|default:"-" }}</td>
+        <td>{{ r.year|default:"-" }}</td>
+        <td>{{ r.gross|floatformat:2 }}</td>
+        <td>{{ r.deductions|floatformat:2 }}</td>
+        <td class="actions">
+          <a href="/payslips/{{ r.pk }}/edit/" class="btn btn-primary btn-sm">Edit</a>
+          <form method="post" action="/payslips/{{ r.pk }}/delete/" style="display:inline" onsubmit="return confirm('Delete?')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm">Del</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <p>No payslips found.</p>
+    <a href="/payslips/create/" class="btn btn-primary" style="margin-top:1rem">Create Payslip</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
